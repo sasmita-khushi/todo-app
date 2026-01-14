@@ -1,47 +1,83 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, Link } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Modal, Pressable, Text, View, FlatList } from "react-native";
+import { Modal, Pressable, Text, View, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../context/theme-context";
+import TodoScreen, { type Todo } from "../components/todo";
+import Calender from "@/components/calender";
+import { DateBar } from "@/components/date-bar";
+import { FadeInUp, FadeInDown } from "react-native-reanimated";
+import { fetchMonthlyTodoData } from "@/utility";
+import DisplayTodos from "@/components/show-todo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export default function Calender() {
-  const DAY_BOX_WIDTH = 46;
-  const DAY_BOX_HEIGHT = 60;
+type DayTodos = {
+  todos: Todo[];
+};
+
+type MonthTodos = DayTodos[];
+
+export default function IndexPage() {
   const { isDark, toggleTheme } = useTheme();
+  // this is for today date
   const [date, setDate] = useState(new Date());
+  // this is used for selected date in date bar
   const [selected, setSelected] = useState(new Date());
-  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef<FlatList<number>>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [monthTodos, setMonthTodos] = useState<MonthTodos>([]);
+  const [isMonthlyDataLoaded, setIsMonthlyDataLoaded] = useState(false);
+
+  const [selectedDateTodos, setSelectedDateTodos] = useState<{
+    todos: Todo[];
+    day: number;
+  }>({ day: -1, todos: [] });
+
+  useEffect(() => {
+    //console.log("selected is", selected);
+    //let yearMonth = `${selected.getFullYear()}-${selected.getMonth()}`;
+    setIsMonthlyDataLoaded(false);
+    fetchMonthlyTodoData(
+      selectedMonthDate.getFullYear(),
+      selectedMonthDate.getMonth()
+    ).then((monthlyTodos: MonthTodos) => {
+      console.log("fetching monthly data -", monthlyTodos);
+      setMonthTodos(monthlyTodos);
+      setIsMonthlyDataLoaded(true);
+    });
+  }, [selectedMonthDate]);
+
+  useEffect(() => {
+    if (isMonthlyDataLoaded) {
+      const day = selected.getDate() - 1;
+      const dayTodos = { todos: monthTodos[day].todos, day };
+      setSelectedDateTodos(dayTodos);
+    }
+  }, [selected, isMonthlyDataLoaded, monthTodos]);
+
+  const flatListRef = useRef<FlatList<number>>(null) as React.RefObject<
+    FlatList<number>
+  >;
+
+  //console.log("Selected", selected);
+
+  // const selectedDateKey = selected.toISOString().split("T")[0];
+  // console.log(selectedDateKey);
+  // const dayEntry = monthTodos.find((day) => day.date === selectedDateKey);
+  // const todosForSelectedDay = dayEntry?.todos ?? [];
 
   const monthYear = date.toLocaleString("en-US", {
     month: "long",
     year: "numeric",
   });
 
-  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   const lastDate = new Date(
     date.getFullYear(),
     date.getMonth() + 1,
     0
   ).getDate();
-  const monthDays = Array.from({ length: lastDate }, (_, i) => i + 1);
-
-  const days: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i++) days.push(null);
-  for (let i = 1; i <= lastDate; i++) days.push(i);
-  while (days.length < 42) days.push(null);
-
-  useEffect(() => {
-    fadeAnim.setValue(0);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [date]);
 
   const scrollToDay = (day: number) => {
     requestAnimationFrame(() => {
@@ -52,20 +88,69 @@ export default function Calender() {
       });
     });
   };
+  const handleDayPress = (day: number, month?: number, year?: number) => {
+    console.log(".........");
+    const newMonth = month ?? date.getMonth();
+    const newYear = year ?? date.getFullYear();
 
-  const handleDayPress = (day: number) => {
-    const newDate = new Date(date.getFullYear(), date.getMonth(), day);
+    const newDate = new Date(newYear, newMonth, day);
+
     setSelected(newDate);
-    setDate(newDate);
+    setDate(newDate); // Sync the main view date
+
+    // setSelectedMonthDate(newDate);
+
+    // Only scroll if we are in the same month as the DateBar view
     scrollToDay(day);
     setModalVisible(false);
   };
 
-  const handlePrevMonth = () =>
-    setDate(new Date(date.getFullYear(), date.getMonth() - 1, 1));
-  const handleNextMonth = () =>
-    setDate(new Date(date.getFullYear(), date.getMonth() + 1, 1));
+  const handleDateSelectionFromCalender = (
+    day: number,
+    month: number,
+    year: number
+  ) => {
+    //console.log("selected---->>>>", year, month, day);
 
+    console.log("---------->", selectedMonthDate.getMonth(), month);
+    // console.log("month", month);
+    const newDate = new Date(year, month, day);
+
+    //to avoid unnecessary fetching the the same month
+
+    if (
+      selectedMonthDate.getMonth() !== month ||
+      year !== selectedMonthDate.getFullYear()
+    ) {
+      setSelectedMonthDate(newDate);
+    }
+
+    setSelected(newDate);
+    setDate(newDate); // Sync the main view date
+    // setSelectedMonthDate(newDate);
+
+    // Only scroll if we are in the same month as the DateBar view
+    scrollToDay(day);
+    setModalVisible(false);
+  };
+
+  const handleUpdateTodo = async (day: number, todos: Todo[]) => {
+    console.log("parent updateTodo called", day, todos);
+    let monthTodoCopy = [...monthTodos];
+    monthTodoCopy[day].todos = todos;
+    console.log("--------------", monthTodoCopy);
+    setMonthTodos(monthTodoCopy);
+    const year = selected.getFullYear();
+    const month = selected.getMonth() + 1;
+    console.log("year", year, "month", month);
+
+    await AsyncStorage.setItem(
+      `${year}-${month}`,
+      JSON.stringify(monthTodoCopy)
+    );
+  };
+
+  console.log("selected", selected.getDate());
   return (
     <>
       <Stack.Screen
@@ -97,7 +182,7 @@ export default function Calender() {
                   scrollToDay(today.getDate());
                 }}
               >
-                <Text className="text-lg font-semibold text-white dark:text-slate-950">
+                <Text className="text-lg font-robotoMedium text-white dark:text-slate-950">
                   Today
                 </Text>
               </Pressable>
@@ -118,48 +203,27 @@ export default function Calender() {
         {/* Main Content (Horizontal List) */}
         <View className="mt-4">
           <View className="flex-row mb-2">
-            <Text className="dark:text-white ml-8 text-3xl font-bold text-gray-800">
+            <Text
+              className="dark:text-white ml-8 text-3xl font-robotoBold
+             text-gray-800"
+            >
               DAY {date.getDate()}
             </Text>
             <Text className="dark:text-gray-400 text-xl ml-1 self-end mb-1">
               / {lastDate}
             </Text>
           </View>
+          {isMonthlyDataLoaded && (
+            <DateBar
+              date={date}
+              selected={selected}
+              onSelectDay={handleDayPress}
+              monthlyData={monthTodos}
+              flatListRef={flatListRef}
+            />
+          )}
 
-          <FlatList
-            ref={flatListRef}
-            data={monthDays}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.toString()}
-            contentContainerStyle={{ paddingHorizontal: 12, gap: 10 }}
-            renderItem={({ item }) => {
-              const isSelected =
-                selected.getDate() === item &&
-                selected.getMonth() === date.getMonth();
-              return (
-                <Pressable
-                  onPress={() => handleDayPress(item)}
-                  style={{ width: DAY_BOX_WIDTH, height: DAY_BOX_HEIGHT }}
-                  className={`rounded-full items-center justify-center ${
-                    isSelected
-                      ? "bg-gray-800 dark:bg-gray-200"
-                      : "bg-gray-200 dark:bg-gray-900"
-                  }`}
-                >
-                  <Text
-                    className={`text-lg font-semibold ${
-                      isSelected
-                        ? "text-white dark:text-black"
-                        : "text-gray-800 dark:text-gray-400"
-                    }`}
-                  >
-                    {item}
-                  </Text>
-                </Pressable>
-              );
-            }}
-          />
+          {/* <Link href="/foo">go to foo</Link> */}
         </View>
 
         {/* MODAL SECTION - FIX APPLIED HERE */}
@@ -168,117 +232,26 @@ export default function Calender() {
           animationType="slide"
           presentationStyle="pageSheet"
           onRequestClose={() => setModalVisible(false)}
+          transparent
         >
-          <SafeAreaView
-            className="flex-1 bg-white dark:bg-gray-950"
-            edges={["top"]}
-          >
-            <View className="flex-1 px-4">
-              {/* MODAL HEADER */}
-              <View className="flex-row justify-between items-center border-b dark:border-gray-800 border-gray-200 py-4 mb-4">
-                <Text className="dark:text-white text-xl font-bold">
-                  Select Date
-                </Text>
-                <Pressable
-                  onPress={() => setModalVisible(false)}
-                  className="bg-gray-200 dark:bg-gray-800 p-2 rounded-full"
-                >
-                  <Ionicons
-                    name="close-outline"
-                    size={24}
-                    color={isDark ? "white" : "black"}
-                  />
-                </Pressable>
-              </View>
-
-              {/* MONTH NAVIGATION */}
-              <View className="flex-row justify-between items-center mb-6">
-                <Pressable
-                  onPress={handlePrevMonth}
-                  className="bg-gray-100 dark:bg-gray-800 p-3 rounded-full"
-                >
-                  <Ionicons
-                    name="chevron-back-outline"
-                    size={20}
-                    color={isDark ? "white" : "black"}
-                  />
-                </Pressable>
-                <Text className="font-bold text-lg text-black dark:text-white">
-                  {monthYear}
-                </Text>
-                <Pressable
-                  onPress={handleNextMonth}
-                  className="bg-gray-100 dark:bg-gray-800 p-3 rounded-full"
-                >
-                  <Ionicons
-                    name="chevron-forward-outline"
-                    size={20}
-                    color={isDark ? "white" : "black"}
-                  />
-                </Pressable>
-              </View>
-
-              {/* CALENDAR GRID */}
-              <View className="flex-row mb-2">
-                {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
-                  <Text
-                    key={d}
-                    className="text-xs text-center font-bold text-gray-400"
-                    style={{ width: `${100 / 7}%` }}
-                  >
-                    {d}
-                  </Text>
-                ))}
-              </View>
-
-              <View className="flex-row flex-wrap">
-                {days.map((day, index) => {
-                  const isSelected =
-                    day &&
-                    selected.getDate() === day &&
-                    selected.getMonth() === date.getMonth();
-                  return (
-                    <View
-                      key={index}
-                      className="items-center my-2"
-                      style={{ width: `${100 / 7}%` }}
-                    >
-                      {day ? (
-                        <Animated.View
-                          style={{
-                            opacity: fadeAnim,
-                            transform: [{ scale: fadeAnim }],
-                          }}
-                        >
-                          <Pressable
-                            onPress={() => handleDayPress(day)}
-                            className={`h-12 w-12 rounded-full items-center justify-center ${
-                              isSelected
-                                ? "bg-gray-900 dark:bg-white"
-                                : "bg-gray-100 dark:bg-gray-900"
-                            }`}
-                          >
-                            <Text
-                              className={`font-bold ${
-                                isSelected
-                                  ? "text-white dark:text-black"
-                                  : "text-black dark:text-gray-200"
-                              }`}
-                            >
-                              {day}
-                            </Text>
-                          </Pressable>
-                        </Animated.View>
-                      ) : (
-                        <View className="h-12 w-12" />
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
+          <SafeAreaView edges={["top"]}>
+            <View className="bg-white dark:bg-gray-950">
+              <Calender
+                selected={selected}
+                onSelectDay={handleDateSelectionFromCalender}
+                onClose={() => setModalVisible(false)}
+              />
             </View>
           </SafeAreaView>
         </Modal>
+
+        {isMonthlyDataLoaded ? (
+          <DisplayTodos
+            todoData={selectedDateTodos!}
+            updateTodo={handleUpdateTodo}
+          />
+        ) : null}
+        {/* <TodoScreen selectedDate={selected} monthTodos={monthTodos} /> */}
       </View>
     </>
   );

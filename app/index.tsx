@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useRouter, Link } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, Text, View, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../context/theme-context";
@@ -11,6 +11,7 @@ import { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { fetchMonthlyTodoData } from "@/utility";
 import DisplayTodos from "@/components/show-todo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTodoStore } from "@/store";
 
 type DayTodos = {
   todos: Todo[];
@@ -23,50 +24,17 @@ export default function IndexPage() {
   // this is for today date
   const [date, setDate] = useState(new Date());
   // this is used for selected date in date bar
-  const [selected, setSelected] = useState(new Date());
+  //const selected = useTodoStore((state) => state.selectedDate);
+  const setSelectedDate = useTodoStore((state) => state.setSelectedDate);
   const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
+  const todos = useTodoStore((state) => state.todos);
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [monthTodos, setMonthTodos] = useState<MonthTodos>([]);
-  const [isMonthlyDataLoaded, setIsMonthlyDataLoaded] = useState(false);
-
-  const [selectedDateTodos, setSelectedDateTodos] = useState<{
-    todos: Todo[];
-    day: number;
-  }>({ day: -1, todos: [] });
-
-  useEffect(() => {
-    //console.log("selected is", selected);
-    //let yearMonth = `${selected.getFullYear()}-${selected.getMonth()}`;
-    setIsMonthlyDataLoaded(false);
-    fetchMonthlyTodoData(
-      selectedMonthDate.getFullYear(),
-      selectedMonthDate.getMonth()
-    ).then((monthlyTodos: MonthTodos) => {
-      console.log("fetching monthly data -", monthlyTodos);
-      setMonthTodos(monthlyTodos);
-      setIsMonthlyDataLoaded(true);
-    });
-  }, [selectedMonthDate]);
-
-  useEffect(() => {
-    if (isMonthlyDataLoaded) {
-      const day = selected.getDate() - 1;
-      const dayTodos = { todos: monthTodos[day].todos, day };
-      setSelectedDateTodos(dayTodos);
-    }
-  }, [selected, isMonthlyDataLoaded, monthTodos]);
+  const setShowTodo = useTodoStore((state) => state.setShowTodoBox);
 
   const flatListRef = useRef<FlatList<number>>(null) as React.RefObject<
     FlatList<number>
   >;
-
-  //console.log("Selected", selected);
-
-  // const selectedDateKey = selected.toISOString().split("T")[0];
-  // console.log(selectedDateKey);
-  // const dayEntry = monthTodos.find((day) => day.date === selectedDateKey);
-  // const todosForSelectedDay = dayEntry?.todos ?? [];
 
   const monthYear = date.toLocaleString("en-US", {
     month: "long",
@@ -94,15 +62,14 @@ export default function IndexPage() {
     const newYear = year ?? date.getFullYear();
 
     const newDate = new Date(newYear, newMonth, day);
+    console.log("newDate", newDate);
+    setSelectedDate(newDate);
 
-    setSelected(newDate);
-    setDate(newDate); // Sync the main view date
-
-    // setSelectedMonthDate(newDate);
+    setShowTodo(false);
 
     // Only scroll if we are in the same month as the DateBar view
     scrollToDay(day);
-    setModalVisible(false);
+    //setModalVisible(false);
   };
 
   const handleDateSelectionFromCalender = (
@@ -125,32 +92,15 @@ export default function IndexPage() {
       setSelectedMonthDate(newDate);
     }
 
-    setSelected(newDate);
+    setSelectedDate(newDate);
     setDate(newDate); // Sync the main view date
-    // setSelectedMonthDate(newDate);
 
     // Only scroll if we are in the same month as the DateBar view
     scrollToDay(day);
     setModalVisible(false);
   };
 
-  const handleUpdateTodo = async (day: number, todos: Todo[]) => {
-    console.log("parent updateTodo called", day, todos);
-    let monthTodoCopy = [...monthTodos];
-    monthTodoCopy[day].todos = todos;
-    console.log("--------------", monthTodoCopy);
-    setMonthTodos(monthTodoCopy);
-    const year = selected.getFullYear();
-    const month = selected.getMonth() + 1;
-    console.log("year", year, "month", month);
-
-    await AsyncStorage.setItem(
-      `${year}-${month}`,
-      JSON.stringify(monthTodoCopy)
-    );
-  };
-
-  console.log("selected", selected.getDate());
+  //console.log("selected", selected.getDate());
   return (
     <>
       <Stack.Screen
@@ -178,7 +128,7 @@ export default function IndexPage() {
                 onPress={() => {
                   const today = new Date();
                   setDate(today);
-                  setSelected(today);
+                  setSelectedDate(today);
                   scrollToDay(today.getDate());
                 }}
               >
@@ -213,15 +163,12 @@ export default function IndexPage() {
               / {lastDate}
             </Text>
           </View>
-          {isMonthlyDataLoaded && (
-            <DateBar
-              date={date}
-              selected={selected}
-              onSelectDay={handleDayPress}
-              monthlyData={monthTodos}
-              flatListRef={flatListRef}
-            />
-          )}
+
+          <DateBar
+            date={date}
+            onSelectDay={handleDayPress}
+            flatListRef={flatListRef}
+          />
 
           {/* <Link href="/foo">go to foo</Link> */}
         </View>
@@ -237,7 +184,7 @@ export default function IndexPage() {
           <SafeAreaView edges={["top"]}>
             <View className="bg-white dark:bg-gray-950">
               <Calender
-                selected={selected}
+                //selected={selected}
                 onSelectDay={handleDateSelectionFromCalender}
                 onClose={() => setModalVisible(false)}
               />
@@ -245,14 +192,31 @@ export default function IndexPage() {
           </SafeAreaView>
         </Modal>
 
-        {isMonthlyDataLoaded ? (
-          <DisplayTodos
-            todoData={selectedDateTodos!}
-            updateTodo={handleUpdateTodo}
-          />
-        ) : null}
+        <DisplayTodos />
+
         {/* <TodoScreen selectedDate={selected} monthTodos={monthTodos} /> */}
       </View>
+
+      <Pressable
+        className="absolute bottom-8 right-6 bg-blue-600 rounded-full p-4 shadow-lg"
+        onPress={async () => {
+          //console.log("button pressed");
+          try {
+            console.log("Clearing AsyncStorage...");
+            let keys = await AsyncStorage.getItem("2026-1-20");
+            console.log("Todos....", todos);
+            //await AsyncStorage.multiRemove(keys);
+            console.log(keys);
+          } catch (e) {
+            console.log("Error clearing AsyncStorage", e);
+          }
+
+          //console.log("Cleared AsyncStorage");
+          // You can navigate to a new screen or open a modal to add a new todo
+        }}
+      >
+        <Ionicons name="add" size={24} color="white" />
+      </Pressable>
     </>
   );
 }

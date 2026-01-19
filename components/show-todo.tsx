@@ -16,22 +16,23 @@ import { type Todo } from "@/type";
 import { useEffect, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import CheckBox from "@/check-box";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTodoStore } from "@/store";
 
 // Generate unique id
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-export default function DisplayTodos(props: {
-  todoData: { day: number; todos: Todo[] };
-  updateTodo: (day: number, todos: Todo[]) => void;
-}) {
+export default function DisplayTodos() {
   console.log("DisplayTodos render");
-  const { todos, day } = props.todoData;
-  console.log(todos, day);
+  // const { todos, day } = props.todoData;
+  //console.log(todos, day);
   const { width } = useWindowDimensions();
   const slide = useSharedValue(0);
+  const showTodoBox = useTodoStore((state) => state.showTodoBox);
+  const setTodoBox = useTodoStore((state) => state.setShowTodoBox);
+  const todos = useTodoStore((state) => state.todos);
+  const day = useTodoStore((state) => state.selectedDate.getDate());
   //console.log("text...", props);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -44,27 +45,32 @@ export default function DisplayTodos(props: {
 
   useEffect(() => {
     console.log("useeffect fired");
-    if (todos.length === 0) {
+    console.log("Todos length...", todos.length, showTodoBox);
+    if (todos.length > 0 || showTodoBox) {
+      slide.value = withTiming(1, { duration: 300 });
+    } else {
       slide.value = withTiming(0, { duration: 300 });
     }
-  }, [todos, slide]);
+  }, [todos, showTodoBox, slide]);
 
   const handleCreateText = () => {
-    slide.value = withTiming(1, { duration: 300 });
+    //slide.value = withTiming(1, { duration: 300 });
+    setTodoBox(true);
   };
 
-  if (todos.length === 0) {
-    return (
-      <Animated.View
-        className="flex-row "
-        style={[{ width: width * 2 }, animatedStyle]}
-      >
-        <NoTodoBox handleCreateTodoPress={handleCreateText} width={width} />
-        <CreateTodoBox width={width} day={day} updateTodos={props.updateTodo} />
-      </Animated.View>
-    );
-  }
+  //// if (todos.length === 0) {
+  return (
+    <Animated.View
+      className="flex-row "
+      style={[{ width: width * 2 }, animatedStyle]}
+    >
+      <NoTodoBox handleCreateTodoPress={handleCreateText} width={width} />
+
+      <CreateTodoBox width={width} day={day} />
+    </Animated.View>
+  );
 }
+//}
 
 function NoTodoBox({
   width,
@@ -99,38 +105,36 @@ function NoTodoBox({
   );
 }
 
-function CreateTodoBox({
-  width,
-  day,
-  updateTodos,
-}: {
-  width: number;
-  day: number;
-  updateTodos: (day: number, todos: Todo[]) => void;
-}) {
+function CreateTodoBox({ width, day }: { width: number; day: number }) {
   const [text, setText] = useState("");
-  const [todos, setTodos] = useState<Todo[]>([]);
+  // const [todos, setTodos] = useState<Todo[]>([]);
+  // const selectedDate = useTodoStore((state) => state.selectedDate);
+  const todos = useTodoStore((state) => state.todos);
+  //const setTodos = useTodoStore((state) => state.setTodos);
+  console.log("CreateTodoBox render", todos);
+  const addTodo = useTodoStore((state) => state.addTodo);
+  const removeTodo = useTodoStore((state) => state.removeTodo);
 
   const handleAddTodo = () => {
     if (text.trim() !== "") {
       const newTodos = { id: generateId(), completed: false, text: text };
-      const todosCopy = [...todos, newTodos];
-      setTodos(todosCopy);
 
+      addTodo(newTodos);
       setText("");
-      updateTodos(day, todosCopy);
+      //updateTodos(day, todosCopy);
     }
   };
 
   const handleDeleteTodo = (id: string) => {
-    setTodos((prev) => prev.filter((t) => t.id !== id));
+    // setTodos((prev) => prev.filter((t) => t.id !== id));
     //updateTodos(day, todos);
+    removeTodo(id);
   };
 
   const handleCheck = (id: string) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
-    );
+    // setTodos((prev) =>
+    //   prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
+    // );
     //updateTodos(day, todos);
   };
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ListRenderItemInfo,
 } from "react-native";
 import { type Todo } from "./todo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTodoStore } from "@/store";
 
 type DayTodos = {
   todos: Todo[];
@@ -16,18 +18,16 @@ type MonthTodos = DayTodos[];
 
 type DateBarProps = {
   date: Date; //To know which month (Jan, Feb…)
-  selected: Date; //To highlight the selected day
+  //selected: Date; //To highlight the selected day
   onSelectDay: (day: number) => void; //Tell parent: "user selected day X"
   flatListRef: React.RefObject<FlatList<number>>; // Allows parent to control scrolling
   dayBoxWidth?: number;
   dayBoxHeight?: number;
-  monthlyData: MonthTodos;
 };
 
 export function DateBar({
-  monthlyData,
   date,
-  selected,
+
   onSelectDay,
   flatListRef,
   dayBoxWidth = 46,
@@ -52,45 +52,44 @@ export function DateBar({
     });
   };
 
+  const selectedDate = useTodoStore((state) => state.selectedDate);
   useEffect(() => {
-    if (selected.getMonth() === date.getMonth()) {
-      scrollToDay(selected.getDate());
+    if (selectedDate.getMonth() === date.getMonth()) {
+      scrollToDay(selectedDate.getDate());
     } else {
       scrollToDay(1);
     }
-  }, [date]);
+  }, [date, selectedDate]);
 
-  const renderItem = ({ item }: ListRenderItemInfo<number>) => {
-    const isSelected =
-      selected.getDate() === item && selected.getMonth() === date.getMonth();
-    // console.log(item, item - 1);
-    return (
-      <Pressable
-        onPress={() => {
-          onSelectDay(item);
-          scrollToDay(item);
-        }}
-        style={{ width: dayBoxWidth, height: dayBoxHeight }}
-        className={`rounded-full items-center justify-center ${
-          isSelected
-            ? "bg-gray-800 dark:bg-gray-200"
-            : "bg-gray-200 dark:bg-gray-900"
-        }`}
-      >
-        <Text
-          className={`text-lg font-semibold ${
-            isSelected
-              ? "text-white dark:text-black"
-              : "text-gray-800 dark:text-gray-400"
-          }`}
-        >
-          {item}
-
-          {monthlyData[item - 1].todos.length > 0 ? "a" : ""}
-        </Text>
-      </Pressable>
-    );
-  };
+  // const renderItem = ({ item }: ListRenderItemInfo<number>) => {
+  //   const isSelected =
+  //     selected.getDate() === item && selected.getMonth() === date.getMonth();
+  //   // console.log(item, item - 1);
+  //   return (
+  //     <Pressable
+  //       onPress={() => {
+  //         onSelectDay(item);
+  //         scrollToDay(item);
+  //       }}
+  //       style={{ width: dayBoxWidth, height: dayBoxHeight }}
+  //       className={`rounded-full items-center justify-center ${
+  //         isSelected
+  //           ? "bg-gray-800 dark:bg-gray-200"
+  //           : "bg-gray-200 dark:bg-gray-900"
+  //       }`}
+  //     >
+  //       <Text
+  //         className={`text-lg font-semibold ${
+  //           isSelected
+  //             ? "text-white dark:text-black"
+  //             : "text-gray-800 dark:text-gray-400"
+  //         }`}
+  //       >
+  //         {item}
+  //       </Text>
+  //     </Pressable>
+  //   );
+  // };
 
   return (
     <View className="mt-4">
@@ -103,7 +102,19 @@ export function DateBar({
           return item.toString();
         }}
         contentContainerStyle={{ paddingHorizontal: 12, gap: 10 }}
-        renderItem={renderItem}
+        renderItem={({ item }) => {
+          //console.log("DateBar renderItem", item);
+          return (
+            <RenderDay
+              item={item}
+              onSelectDay={onSelectDay}
+              date={date}
+              dayBoxWidth={dayBoxWidth}
+              dayBoxHeight={dayBoxHeight}
+              scrollToDay={scrollToDay}
+            />
+          );
+        }}
         getItemLayout={(_, index) => ({
           length: ITEM_WIDTH,
           offset: ITEM_WIDTH * index,
@@ -113,3 +124,95 @@ export function DateBar({
     </View>
   );
 }
+
+type RenderDayProps = {
+  item: number;
+  onSelectDay: (day: number) => void;
+  date: Date;
+  dayBoxWidth: number;
+  dayBoxHeight: number;
+  scrollToDay: (day: number) => void;
+};
+
+const RenderDay = ({
+  item,
+  onSelectDay,
+  date,
+  dayBoxWidth,
+  dayBoxHeight,
+  scrollToDay,
+}: RenderDayProps) => {
+  const selectedDate = useTodoStore((state) => state.selectedDate);
+  const isSelected =
+    selectedDate.getDate() === item &&
+    selectedDate.getMonth() === date.getMonth();
+  //const [dayTodos, setDayTodos] = useState([]);
+  const [isThereTodos, setIsThereTodos] = useState(false);
+  const isMatched = useRef(false);
+
+  // console.log(item, item - 1);
+
+  const setTodos = useTodoStore((state) => state.setTodos);
+
+  useEffect(() => {
+    //console.log("RenderDay render", item);
+
+    let key = `${selectedDate.getFullYear()}-${selectedDate.getMonth() + 1}-${item}`;
+    AsyncStorage.getItem(key).then((todosString) => {
+      //console.log("fetched todos for ", key, res);
+      // console.log("fetched todos for ", key, todos);
+      console.log("Todo String...", todosString);
+      if (selectedDate.getDate() === item) {
+        setTodos([]);
+      }
+      if (todosString) {
+        const todos: Todo[] = JSON.parse(todosString);
+        setIsThereTodos(todos.length > 0);
+        console.log(
+          "Setting todos for selected day...",
+          selectedDate.getDate(),
+          item,
+          todos
+        );
+        if (selectedDate.getDate() === item) {
+          console.log("Updating store todos...", todos);
+          setTodos(todos);
+          isMatched.current = true;
+        }
+      } else {
+        //setTodos([]);
+        setIsThereTodos(false);
+      }
+    });
+  }, [item, selectedDate, setTodos]);
+
+  return (
+    <Pressable
+      onPress={() => {
+        onSelectDay(item);
+        scrollToDay(item);
+      }}
+      style={{ width: dayBoxWidth, height: dayBoxHeight }}
+      className={`rounded-full items-center justify-center ${
+        isSelected
+          ? "bg-gray-800 dark:bg-gray-200"
+          : "bg-gray-200 dark:bg-gray-900"
+      }`}
+    >
+      <Text
+        className={`text-lg font-semibold ${
+          isSelected
+            ? "text-white dark:text-black"
+            : "text-gray-800 dark:text-gray-400"
+        }`}
+      >
+        {item}
+      </Text>
+      {isThereTodos ? (
+        <View className="justify-center items-center">
+          <Text className="text-xs text-green-500">●</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+};

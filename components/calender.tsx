@@ -2,9 +2,9 @@ import { View, Text, Pressable, Alert } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../context/theme-context";
 import { useEffect, useState } from "react";
+import { useTodoStore } from "@/store";
 
 type CalenderProps = {
-  selected?: Date;
   year?: number;
   month?: number;
   onSelectDay?: (day: number, month: number, year: number) => void;
@@ -12,7 +12,6 @@ type CalenderProps = {
 };
 
 export default function Calender({
-  selected,
   year,
   month,
   onSelectDay,
@@ -28,6 +27,7 @@ export default function Calender({
   };
 
   const [viewDate, setViewDate] = useState<Date>(getInitialDate);
+  const selected = useTodoStore((state) => state.selectedDate);
 
   useEffect(() => {
     if (selected) {

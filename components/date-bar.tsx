@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -36,60 +36,34 @@ export function DateBar({
   const lastDate = new Date(
     date.getFullYear(),
     date.getMonth() + 1,
-    0
+    0,
   ).getDate();
   const monthDays = Array.from({ length: lastDate }, (_, i) => i + 1);
 
   const ITEM_WIDTH = dayBoxWidth + 10;
 
-  const scrollToDay = (day: number) => {
-    requestAnimationFrame(() => {
-      flatListRef.current?.scrollToIndex({
-        index: day - 1,
-        animated: true,
-        viewPosition: 0.5, // center
+  const scrollToDay = useCallback(
+    (day: number) => {
+      requestAnimationFrame(() => {
+        flatListRef.current?.scrollToIndex({
+          index: day - 1,
+          animated: true,
+          viewPosition: 0.5, // center
+        });
       });
-    });
-  };
+    },
+    [flatListRef],
+  );
 
   const selectedDate = useTodoStore((state) => state.selectedDate);
   useEffect(() => {
-    if (selectedDate.getMonth() === date.getMonth()) {
-      scrollToDay(selectedDate.getDate());
-    } else {
-      scrollToDay(1);
-    }
-  }, [date, selectedDate]);
-
-  // const renderItem = ({ item }: ListRenderItemInfo<number>) => {
-  //   const isSelected =
-  //     selected.getDate() === item && selected.getMonth() === date.getMonth();
-  //   // console.log(item, item - 1);
-  //   return (
-  //     <Pressable
-  //       onPress={() => {
-  //         onSelectDay(item);
-  //         scrollToDay(item);
-  //       }}
-  //       style={{ width: dayBoxWidth, height: dayBoxHeight }}
-  //       className={`rounded-full items-center justify-center ${
-  //         isSelected
-  //           ? "bg-gray-800 dark:bg-gray-200"
-  //           : "bg-gray-200 dark:bg-gray-900"
-  //       }`}
-  //     >
-  //       <Text
-  //         className={`text-lg font-semibold ${
-  //           isSelected
-  //             ? "text-white dark:text-black"
-  //             : "text-gray-800 dark:text-gray-400"
-  //         }`}
-  //       >
-  //         {item}
-  //       </Text>
-  //     </Pressable>
-  //   );
-  // };
+    // if (selectedDate.getMonth() === date.getMonth()) {
+    //   scrollToDay(selectedDate.getDate());
+    // } else {
+    //   scrollToDay(1);
+    // }
+    scrollToDay(selectedDate.getDate());
+  }, [selectedDate, scrollToDay]);
 
   return (
     <View className="mt-4">
@@ -148,11 +122,20 @@ const RenderDay = ({
     selectedDate.getMonth() === date.getMonth();
   //const [dayTodos, setDayTodos] = useState([]);
   const [isThereTodos, setIsThereTodos] = useState(false);
-  const isMatched = useRef(false);
 
   // console.log(item, item - 1);
 
   const setTodos = useTodoStore((state) => state.setTodos);
+  const todos = useTodoStore((state) => state.todos);
+
+  useEffect(() => {
+    if (isSelected && todos.length > 0) {
+      setIsThereTodos(true);
+    }
+    if (isSelected && todos.length === 0) {
+      setIsThereTodos(false);
+    }
+  }, [isSelected, todos.length]);
 
   useEffect(() => {
     //console.log("RenderDay render", item);
@@ -166,18 +149,18 @@ const RenderDay = ({
         setTodos([]);
       }
       if (todosString) {
-        const todos: Todo[] = JSON.parse(todosString);
-        setIsThereTodos(todos.length > 0);
-        console.log(
-          "Setting todos for selected day...",
-          selectedDate.getDate(),
-          item,
-          todos
-        );
+        console.log("item ---- ", item, todosString);
+        setIsThereTodos(true);
+        // console.log(
+        //   "Setting todos for selected day...",
+        //   selectedDate.getDate(),
+        //   item,
+        //   todos,
+        // );
         if (selectedDate.getDate() === item) {
+          const todos: Todo[] = JSON.parse(todosString);
           console.log("Updating store todos...", todos);
           setTodos(todos);
-          isMatched.current = true;
         }
       } else {
         //setTodos([]);

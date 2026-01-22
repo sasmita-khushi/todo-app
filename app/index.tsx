@@ -13,12 +13,6 @@ import DisplayTodos from "@/components/show-todo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTodoStore } from "@/store";
 
-type DayTodos = {
-  todos: Todo[];
-};
-
-type MonthTodos = DayTodos[];
-
 export default function IndexPage() {
   const { isDark, toggleTheme } = useTheme();
   // this is for today date
@@ -26,7 +20,7 @@ export default function IndexPage() {
   // this is used for selected date in date bar
   //const selected = useTodoStore((state) => state.selectedDate);
   const setSelectedDate = useTodoStore((state) => state.setSelectedDate);
-  const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
+
   const todos = useTodoStore((state) => state.todos);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -44,7 +38,7 @@ export default function IndexPage() {
   const lastDate = new Date(
     date.getFullYear(),
     date.getMonth() + 1,
-    0
+    0,
   ).getDate();
 
   const scrollToDay = (day: number) => {
@@ -75,22 +69,14 @@ export default function IndexPage() {
   const handleDateSelectionFromCalender = (
     day: number,
     month: number,
-    year: number
+    year: number,
   ) => {
     //console.log("selected---->>>>", year, month, day);
 
-    console.log("---------->", selectedMonthDate.getMonth(), month);
     // console.log("month", month);
     const newDate = new Date(year, month, day);
 
     //to avoid unnecessary fetching the the same month
-
-    if (
-      selectedMonthDate.getMonth() !== month ||
-      year !== selectedMonthDate.getFullYear()
-    ) {
-      setSelectedMonthDate(newDate);
-    }
 
     setSelectedDate(newDate);
     setDate(newDate); // Sync the main view date
@@ -202,11 +188,7 @@ export default function IndexPage() {
         onPress={async () => {
           //console.log("button pressed");
           try {
-            console.log("Clearing AsyncStorage...");
-            let keys = await AsyncStorage.getItem("2026-1-20");
-            console.log("Todos....", todos);
-            //await AsyncStorage.multiRemove(keys);
-            console.log(keys);
+            await AsyncStorage.clear();
           } catch (e) {
             console.log("Error clearing AsyncStorage", e);
           }

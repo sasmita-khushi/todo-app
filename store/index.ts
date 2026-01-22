@@ -34,7 +34,11 @@ export const useTodoStore = create<TodoStoreState>((set) => ({
     set((state) => {
       const newTodos = { todos: state.todos.filter((todo) => todo.id !== id) };
       let key = `${state.selectedDate.getFullYear()}-${state.selectedDate.getMonth() + 1}-${state.selectedDate.getDate()}`;
-      AsyncStorage.setItem(key, JSON.stringify(newTodos.todos));
+      if (newTodos.todos.length === 0) {
+        AsyncStorage.removeItem(key);
+      } else {
+        AsyncStorage.setItem(key, JSON.stringify(newTodos.todos));
+      }
       return newTodos;
     });
   },
@@ -43,7 +47,7 @@ export const useTodoStore = create<TodoStoreState>((set) => ({
     set((state) => {
       const newTodos = {
         todos: state.todos.map((todo) =>
-          todo.id === updatedTodo.id ? updatedTodo : todo
+          todo.id === updatedTodo.id ? updatedTodo : todo,
         ),
       };
       let key = `${state.selectedDate.getFullYear()}-${state.selectedDate.getMonth() + 1}-${state.selectedDate.getDate()}`;
